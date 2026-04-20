@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+.angular/
+coverage/
+*.tmp
+
+.nx/cache
+.nx/workspace-data
+
+# Dev/agent artifacts — not part of the application
+ralph/
+.claude/
