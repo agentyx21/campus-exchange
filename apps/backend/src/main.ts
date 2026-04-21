@@ -12,8 +12,29 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
 
-  // Security headers
-  app.use(helmet());
+  // Security headers — explicit CSP for the Angular SPA frontend.
+  // script-src-attr is omitted (false) rather than set to 'none' because
+  // certain browser autofill and third-party integrations use inline event
+  // handlers; Helmet's default 'none' blocks them in incognito (no extensions).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          scriptSrcAttr: null,
+          styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'", 'https:', 'data:'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+    })
+  );
 
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
