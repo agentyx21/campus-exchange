@@ -1,11 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { AdminService, Report } from '../../services/admin.service';
 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, RouterLink],
   template: `
     <div class="admin-page">
       <div class="admin-container">
@@ -25,8 +26,13 @@ import { AdminService, Report } from '../../services/admin.service';
                 <span class="report-reason">{{ report.reason }}</span>
                 <span class="report-date">{{ report.createdAt | date:'short' }}</span>
               </div>
-              <p class="report-listing"><strong>Listing:</strong> {{ report.listing.title }}</p>
-              <p class="report-seller"><strong>Seller:</strong> {{ report.listing.seller.firstName }} {{ report.listing.seller.lastName }}</p>
+              <p class="report-listing">
+                <strong>Listing:</strong>
+                <a [routerLink]="['/listing', report.listing.id]" class="listing-link">{{ report.listing.title }}</a>
+              </p>
+              <p class="report-seller">
+                <strong>Seller:</strong> {{ report.listing.seller.firstName }} {{ report.listing.seller.lastName }}
+              </p>
               @if (report.description) {
                 <p class="report-desc">{{ report.description }}</p>
               }
@@ -34,6 +40,7 @@ import { AdminService, Report } from '../../services/admin.service';
               <div class="report-actions">
                 <button class="btn-dismiss" (click)="reviewReport(report.id, 'dismissed')">Dismiss</button>
                 <button class="btn-approve" (click)="reviewReport(report.id, 'reviewed')">Remove Listing</button>
+                <button class="btn-ban" (click)="banSeller(report.listing.seller.id, report.id)">Ban Seller</button>
               </div>
             </div>
           } @empty {
@@ -81,6 +88,13 @@ import { AdminService, Report } from '../../services/admin.service';
       margin: 4px 0;
       font-size: 0.95rem;
     }
+    .listing-link {
+      color: #003366;
+      text-decoration: none;
+      font-weight: 500;
+      margin-left: 4px;
+    }
+    .listing-link:hover { text-decoration: underline; color: #CC0000; }
     .report-desc {
       color: #555;
       background: #f8f9fa;
@@ -92,6 +106,7 @@ import { AdminService, Report } from '../../services/admin.service';
       display: flex;
       gap: 8px;
       margin-top: 1rem;
+      flex-wrap: wrap;
     }
     .btn-dismiss {
       padding: 8px 20px;
@@ -109,6 +124,16 @@ import { AdminService, Report } from '../../services/admin.service';
       cursor: pointer;
       font-weight: 600;
     }
+    .btn-ban {
+      padding: 8px 20px;
+      background: #5c0000;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-ban:hover { background: #3d0000; }
     .empty { text-align: center; color: #999; padding: 3rem; }
     .error { background: #fee; color: #c00; padding: 12px; border-radius: 8px; margin-bottom: 1rem; }
   `]
@@ -140,6 +165,23 @@ export class AdminComponent implements OnInit {
       },
       error: () => {
         this.errorMsg = 'Failed to update report. Please try again.';
+      },
+    });
+  }
+
+  banSeller(sellerId: number, reportId: number) {
+    if (!confirm('Ban this seller? They will no longer be able to log in.')) return;
+    this.adminService.banUser(sellerId).subscribe({
+      next: () => {
+        // Also dismiss the report after banning
+        this.adminService.reviewReport(reportId, 'reviewed').subscribe({
+          next: () => {
+            this.reports = this.reports.filter((r) => r.id !== reportId);
+          },
+        });
+      },
+      error: (err) => {
+        this.errorMsg = err.error?.message || 'Failed to ban user.';
       },
     });
   }

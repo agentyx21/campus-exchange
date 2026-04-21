@@ -122,7 +122,7 @@ export class ReportsService {
         { status: 'reviewed', reviewedBy: adminId },
       );
       await this.listingsRepository.update(report.listingId, {
-        status: 'deleted',
+        status: 'admin_removed',
       });
 
       return { message: 'Listing removed and report reviewed' };
@@ -142,9 +142,7 @@ export class ReportsService {
           where: { id: report.listingId },
         });
         if (listing && listing.status === 'hidden') {
-          await this.listingsRepository.update(report.listingId, {
-            status: 'active',
-          });
+          await this.listingsRepository.update(report.listingId, { status: 'active' });
         }
       }
     }

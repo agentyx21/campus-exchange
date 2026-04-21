@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -25,14 +25,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: { sub: number; email: string; role: string }) {
-    // Re-check the user on every request so deleted users and role changes apply immediately.
+    // Re-check the user on every request so deleted/banned users and role changes apply immediately.
     const user = await this.usersRepository.findOne({
       where: { id: payload.sub },
-      select: ['id', 'email', 'role'],
+      select: ['id', 'email', 'role', 'isBanned'],
     });
 
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
+    }
+
+    if (user.isBanned) {
+      throw new ForbiddenException('Your account has been banned');
     }
 
     return { id: user.id, email: user.email, role: user.role };

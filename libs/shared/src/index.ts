@@ -45,7 +45,7 @@ export interface Listing {
   price: number;
   listingType: 'fixed' | 'bidding';
   conditionStatus: string;
-  status: string;
+  status: 'active' | 'sold' | 'hidden' | 'deleted' | 'admin_removed';
   bidEndDate?: string;
   viewsCount: number;
   createdAt: string;
@@ -54,7 +54,9 @@ export interface Listing {
     firstName: string;
     lastName: string;
     averageRating: number;
+    totalRatings?: number;
     profileImage?: string;
+    isBanned?: boolean;
   };
   soldToBuyer?: {
     id: number;

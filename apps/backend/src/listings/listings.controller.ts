@@ -15,7 +15,8 @@ import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { MarkSoldDto } from './dto/mark-sold.dto';
-import { JwtAuthGuard } from '../auth/guards';
+import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('listings')
 export class ListingsController {
@@ -87,5 +88,18 @@ export class ListingsController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
     return this.listingsService.remove(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Delete(':id/admin')
+  adminRemove(@Param('id', ParseIntPipe) id: number) {
+    return this.listingsService.adminRemoveListing(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put(':id/end-auction')
+  endAuction(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.listingsService.endAuction(id, req.user.id);
   }
 }

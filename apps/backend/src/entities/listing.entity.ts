@@ -51,10 +51,10 @@ export class Listing {
 
   @Column({
     type: 'enum',
-    enum: ['active', 'sold', 'hidden', 'deleted'],
+    enum: ['active', 'sold', 'hidden', 'deleted', 'admin_removed'],
     default: 'active',
   })
-  status: 'active' | 'sold' | 'hidden' | 'deleted';
+  status: 'active' | 'sold' | 'hidden' | 'deleted' | 'admin_removed';
 
   @Column({ name: 'sold_to_buyer_id', nullable: true })
   soldToBuyerId: number | null;
