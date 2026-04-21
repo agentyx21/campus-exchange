@@ -51,6 +51,9 @@ export class User {
   @Column({ name: 'otp_attempts', type: 'int', default: 0, select: false })
   otpAttempts: number;
 
+  @Column({ name: 'is_banned', default: false })
+  isBanned: boolean;
+
   @Column({
     name: 'average_rating',
     type: 'decimal',

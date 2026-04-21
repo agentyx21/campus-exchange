@@ -23,7 +23,7 @@ import { UserProfile, Listing } from '@campusexchange/shared';
               <h2>{{ user.firstName }} {{ user.lastName }}</h2>
               <p class="email">{{ user.email }}</p>
               <div class="stats">
-                <span>Rating: {{ user.averageRating }}/5 ({{ user.totalRatings }} reviews)</span>
+                <span>{{ getRatingLabel() }}</span>
                 <span>Member since {{ user.createdAt | date:'mediumDate' }}</span>
               </div>
             </div>
@@ -38,7 +38,7 @@ import { UserProfile, Listing } from '@campusexchange/shared';
                 <div class="listing-row">
                   <a [routerLink]="['/listing', listing.id]" class="listing-title">{{ listing.title }}</a>
                   <span class="listing-price">{{ listing.price | currency }}</span>
-                  <span class="listing-status" [class]="listing.status">{{ listing.status }}</span>
+                  <span class="listing-status" [class]="getStatusClass(listing.status)">{{ getStatusLabel(listing.status) }}</span>
                   <span class="listing-date">{{ listing.createdAt | date:'shortDate' }}</span>
                   @if (listing.status === 'active') {
                     <a [routerLink]="['/edit-listing', listing.id]" class="btn-edit">Edit</a>
@@ -116,10 +116,13 @@ import { UserProfile, Listing } from '@campusexchange/shared';
       border-radius: 4px;
       font-size: 0.8rem;
       text-transform: uppercase;
+      white-space: nowrap;
     }
-    .listing-status.active { background: #efe; color: #060; }
-    .listing-status.sold { background: #eef; color: #006; }
-    .listing-status.hidden { background: #ffe; color: #660; }
+    .status-active { background: #efe; color: #060; }
+    .status-sold { background: #eef; color: #006; }
+    .status-hidden { background: #ffe; color: #660; }
+    .status-deleted { background: #eee; color: #666; }
+    .status-admin-removed { background: #fee; color: #900; }
     .listing-date { color: #999; font-size: 0.85rem; }
     .empty { color: #999; }
     .empty a { color: #CC0000; }
@@ -184,11 +187,35 @@ export class ProfileComponent implements OnInit {
     });
   }
 
+  getRatingLabel(): string {
+    if (!this.user || this.user.totalRatings === 0) return 'No reviews yet';
+    const avg = Number(this.user.averageRating);
+    const formatted = avg % 1 === 0 ? avg.toString() : avg.toFixed(2).replace(/\.?0+$/, '');
+    return `Rating: ${formatted}/5 (${this.user.totalRatings} ${this.user.totalRatings === 1 ? 'review' : 'reviews'})`;
+  }
+
+  getStatusLabel(status: string): string {
+    if (status === 'admin_removed') return 'Removed by Admin';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  getStatusClass(status: string): string {
+    return 'status-' + status.replace('_', '-');
+  }
+
   deleteListing(listing: Listing) {
     if (!confirm(`Are you sure you want to delete "${listing.title}"?`)) return;
     this.listingsService.deleteListing(listing.id).subscribe({
       next: () => {
-        this.myListings = this.myListings.filter((l) => l.id !== listing.id);
+        // Refresh the status to 'deleted' in the list without removing it
+        const idx = this.myListings.findIndex(l => l.id === listing.id);
+        if (idx !== -1) {
+          this.myListings = [
+            ...this.myListings.slice(0, idx),
+            { ...this.myListings[idx], status: 'deleted' },
+            ...this.myListings.slice(idx + 1),
+          ];
+        }
       },
       error: () => {
         this.errorMsg = 'Failed to delete listing.';

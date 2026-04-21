@@ -64,4 +64,8 @@ export class ListingsService {
   deleteListing(id: number) {
     return this.http.delete(`${this.apiUrl}/${id}`);
   }
+
+  endAuction(id: number) {
+    return this.http.put<Listing>(`${this.apiUrl}/${id}/end-auction`, {});
+  }
 }

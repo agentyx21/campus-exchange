@@ -19,6 +19,15 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
           sessionStorage.removeItem('token');
           sessionStorage.removeItem('user');
           window.location.href = '/login';
+        } else if (
+          err.status === 403 &&
+          typeof err.error?.message === 'string' &&
+          err.error.message.includes('banned') &&
+          !req.url.includes('/auth/login')
+        ) {
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
+          window.location.href = '/banned';
         }
       },
     }),

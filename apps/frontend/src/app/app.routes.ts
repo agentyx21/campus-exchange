@@ -47,6 +47,10 @@ export const routes: Routes = [
     canActivate: [adminGuard],
   },
   {
+    path: 'banned',
+    loadComponent: () => import('./pages/banned/banned').then(m => m.BannedComponent),
+  },
+  {
     path: '**',
     loadComponent: () => import('./pages/not-found/not-found').then(m => m.NotFoundComponent),
   },

@@ -1,22 +1,22 @@
 services:
   # MySQL Database
-  db:
-    image: mysql:8.0
-    container_name: campusexchange-db-integrated
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./.docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # db:
+  #   image: mysql:8.0
+  #   container_name: campusexchange-db-integrated
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  #     MYSQL_DATABASE: ${DB_DATABASE}
+  #     MYSQL_USER: ${DB_USERNAME}
+  #     MYSQL_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #     - ./.docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+  #   healthcheck:
+  #     test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # NestJS backend — serves both the API and the Angular frontend
   backend:
@@ -29,9 +29,9 @@ services:
       - '3001:3000'
     env_file:
       - .env
-    depends_on:
-      db:
-        condition: service_healthy
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
 
 volumes:
   mysql_data:

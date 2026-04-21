@@ -92,6 +92,10 @@ export class AuthService {
       throw new ForbiddenException('Account pending email verification');
     }
 
+    if (user.isBanned) {
+      throw new ForbiddenException('Your account has been banned');
+    }
+
     const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       accessToken: this.jwtService.sign(payload),

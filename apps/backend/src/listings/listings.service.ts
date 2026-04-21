@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Listing, ListingImage, Category, Conversation, Message } from '../entities';
+import { Listing, ListingImage, Category, Conversation, Message, Bid } from '../entities';
 import { CreateListingDto } from './dto/create-listing.dto';
 import {
   DEFAULT_PAGE_LIMIT,
@@ -33,6 +33,8 @@ export class ListingsService {
     private conversationsRepository: Repository<Conversation>,
     @InjectRepository(Message)
     private messagesRepository: Repository<Message>,
+    @InjectRepository(Bid)
+    private bidsRepository: Repository<Bid>,
     private dataSource: DataSource,
   ) {}
 
@@ -153,7 +155,7 @@ export class ListingsService {
       viewer?.role === 'admin' || viewer?.id === listing.sellerId;
 
     if (
-      (listing.status === 'hidden' || listing.status === 'deleted') &&
+      (listing.status === 'hidden' || listing.status === 'deleted' || listing.status === 'admin_removed') &&
       !canManageListing
     ) {
       throw new NotFoundException('Listing not found');
@@ -171,7 +173,9 @@ export class ListingsService {
         firstName: listing.seller.firstName,
         lastName: listing.seller.lastName,
         averageRating: listing.seller.averageRating,
+        totalRatings: listing.seller.totalRatings,
         profileImage: listing.seller.profileImage,
+        isBanned: listing.seller.isBanned,
       },
       soldToBuyer: listing.soldToBuyer
         ? {
@@ -336,12 +340,98 @@ export class ListingsService {
     if (listing.sellerId !== userId) {
       throw new ForbiddenException('You can only delete your own listings');
     }
-    if (listing.status === 'deleted') {
+    if (listing.status === 'deleted' || listing.status === 'admin_removed') {
       throw new BadRequestException('This listing is already deleted');
     }
 
     await this.listingsRepository.update(id, { status: 'deleted' });
     return { message: 'Listing deleted' };
+  }
+
+  async adminRemoveListing(id: number) {
+    const listing = await this.listingsRepository.findOne({ where: { id } });
+    if (!listing) throw new NotFoundException('Listing not found');
+    if (listing.status === 'admin_removed') {
+      throw new BadRequestException('This listing has already been removed');
+    }
+
+    await this.listingsRepository.update(id, { status: 'admin_removed' });
+    return { message: 'Listing removed by admin' };
+  }
+
+  async endAuction(listingId: number, sellerId: number) {
+    const listing = await this.listingsRepository.findOne({
+      where: { id: listingId },
+      relations: ['seller'],
+    });
+    if (!listing) throw new NotFoundException('Listing not found');
+    if (listing.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only manage your own listings');
+    }
+    if (listing.listingType !== 'bidding') {
+      throw new BadRequestException('This is not a bidding listing');
+    }
+    if (listing.status !== 'active') {
+      throw new BadRequestException('Only active listings can end their auction early');
+    }
+    if (listing.bidEndDate && new Date(listing.bidEndDate) < new Date()) {
+      throw new BadRequestException('Auction has already ended');
+    }
+
+    // Close the auction immediately
+    await this.listingsRepository.update(listingId, { bidEndDate: new Date() });
+
+    // Find the highest active bid to notify the winner
+    const highestBid = await this.bidsRepository.findOne({
+      where: { listingId, status: 'active' },
+      order: { amount: 'DESC' },
+      relations: ['bidder'],
+    });
+
+    if (highestBid) {
+      // Get or create the conversation between seller and winning bidder
+      let conversation = await this.conversationsRepository.findOne({
+        where: { listingId, buyerId: highestBid.bidderId, sellerId },
+      });
+
+      if (!conversation) {
+        try {
+          conversation = this.conversationsRepository.create({
+            listingId,
+            buyerId: highestBid.bidderId,
+            sellerId,
+            lastMessageAt: new Date(),
+          });
+          conversation = await this.conversationsRepository.save(conversation);
+        } catch (error: any) {
+          if (error.code === 'ER_DUP_ENTRY') {
+            conversation = await this.conversationsRepository.findOne({
+              where: { listingId, buyerId: highestBid.bidderId, sellerId },
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (conversation) {
+        const congratsMessage = `Congratulations! Your bid of $${Number(highestBid.amount).toFixed(2)} on "${listing.title}" was the winning bid. I'd love to arrange a handoff — please reply with a time and place that works for you.`;
+
+        await this.messagesRepository.save(
+          this.messagesRepository.create({
+            conversationId: conversation.id,
+            senderId: sellerId,
+            content: congratsMessage,
+          }),
+        );
+
+        await this.conversationsRepository.update(conversation.id, {
+          lastMessageAt: new Date(),
+        });
+      }
+    }
+
+    return this.findOne(listingId, { id: sellerId, role: 'student' });
   }
 
   async findByUser(userId: number) {
@@ -350,7 +440,6 @@ export class ListingsService {
       .leftJoinAndSelect('listing.images', 'images')
       .leftJoinAndSelect('listing.category', 'category')
       .where('listing.sellerId = :userId', { userId })
-      .andWhere('listing.status != :status', { status: 'deleted' })
       .orderBy('listing.createdAt', 'DESC')
       .getMany();
   }

@@ -8,6 +8,7 @@ import { BidsService } from '../../services/bids.service';
 import { MessagesService } from '../../services/messages.service';
 import { ReviewsService } from '../../services/reviews.service';
 import { ReportsService, ReportReason } from '../../services/reports.service';
+import { AdminService } from '../../services/admin.service';
 import { AuthService } from '../../services/auth.service';
 import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/shared';
 
@@ -60,7 +61,7 @@ import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/share
             <div class="meta-tags">
               <span class="tag">{{ listing.conditionStatus | titlecase }}</span>
               <span class="tag">{{ listing.category.name }}</span>
-              <span class="tag" [class.sold-tag]="listing.status === 'sold'">{{ listing.status | titlecase }}</span>
+              <span class="tag" [class.sold-tag]="listing.status === 'sold'" [class.removed-tag]="listing.status === 'admin_removed'">{{ getStatusLabel(listing.status) }}</span>
               @if (listing.listingType === 'bidding') {
                 <span class="tag bid-tag">Accepting Bids</span>
               }
@@ -77,10 +78,30 @@ import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/share
                 <div class="seller-avatar">{{ (listing.seller.firstName || '?')[0] }}{{ (listing.seller.lastName || '?')[0] }}</div>
                 <div>
                   <p class="seller-name">{{ listing.seller.firstName }} {{ listing.seller.lastName }}</p>
-                  <p class="seller-rating">Rating: {{ listing.seller.averageRating }}/5</p>
+                  <p class="seller-rating">{{ getSellerRatingLabel() }}</p>
                 </div>
               </div>
             </div>
+
+            @if (auth.isAdmin) {
+              <div class="admin-actions">
+                <h4>Admin Actions</h4>
+                @if (listing.status !== 'admin_removed' && listing.status !== 'deleted') {
+                  <button class="btn-admin-delete" (click)="adminDeleteListing()" [disabled]="adminDeleting">
+                    {{ adminDeleting ? 'Removing...' : 'Remove Listing' }}
+                  </button>
+                }
+                @if (!listing.seller.isBanned) {
+                  <button class="btn-admin-ban" (click)="banSeller()" [disabled]="banning">
+                    {{ banning ? 'Banning...' : 'Ban Seller' }}
+                  </button>
+                } @else {
+                  <button class="btn-admin-unban" (click)="unbanSeller()" [disabled]="banning">
+                    {{ banning ? 'Unbanning...' : 'Unban Seller' }}
+                  </button>
+                }
+              </div>
+            }
 
             @if (isOwner()) {
               <div class="owner-actions">
@@ -89,6 +110,16 @@ import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/share
                   {{ deleting ? 'Deleting...' : 'Delete Listing' }}
                 </button>
               </div>
+
+              @if (listing.status === 'active' && listing.listingType === 'bidding' && !isBiddingExpired()) {
+                <div class="auction-end-section">
+                  <h3>End Auction Early</h3>
+                  <p class="section-note">Close the auction now and notify the current highest bidder.</p>
+                  <button class="btn-end-auction" (click)="endAuction()" [disabled]="endingAuction">
+                    {{ endingAuction ? 'Ending...' : 'End Auction Now' }}
+                  </button>
+                </div>
+              }
 
               @if (listing.status === 'active') {
                 <div class="sold-section">
@@ -358,6 +389,7 @@ import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/share
     }
     .bid-tag { background: #CC0000; color: white; }
     .sold-tag { background: #003366; color: white; }
+    .removed-tag { background: #5c0000; color: white; }
     .description { margin-bottom: 1.5rem; }
     .description h3 { margin: 0 0 0.5rem; }
     .description p { color: #555; line-height: 1.6; }
@@ -376,6 +408,30 @@ import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/share
     }
     .seller-name { font-weight: 600; margin: 0; }
     .seller-rating { color: #888; margin: 0; font-size: 0.9rem; }
+    .admin-actions {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: #fff8f8;
+      border: 1px solid #fdd;
+      border-radius: 8px;
+    }
+    .admin-actions h4 { margin: 0 0 0.75rem; color: #800; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .btn-admin-delete, .btn-admin-ban, .btn-admin-unban {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-right: 8px;
+    }
+    .btn-admin-delete { background: #CC0000; color: white; }
+    .btn-admin-delete:hover { background: #a00000; }
+    .btn-admin-ban { background: #5c0000; color: white; }
+    .btn-admin-ban:hover { background: #3d0000; }
+    .btn-admin-unban { background: #006600; color: white; }
+    .btn-admin-unban:hover { background: #004d00; }
+    .btn-admin-delete:disabled, .btn-admin-ban:disabled, .btn-admin-unban:disabled { opacity: 0.6; cursor: not-allowed; }
     .bidding-section, .message-section { margin-bottom: 1.5rem; }
     .bid-form { display: flex; gap: 8px; }
     .bid-form input {
@@ -458,6 +514,25 @@ import { EligibleBuyer, Listing, ReviewEligibility } from '@campusexchange/share
     }
     .btn-delete:hover { background: #CC0000; color: white; }
     .btn-delete:disabled { opacity: 0.6; cursor: not-allowed; }
+    .auction-end-section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: #f0f4ff;
+      border: 1px solid #c0d0ff;
+      border-radius: 8px;
+    }
+    .btn-end-auction {
+      padding: 10px 20px;
+      background: #003366;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+    .btn-end-auction:hover { background: #002244; }
+    .btn-end-auction:disabled { opacity: 0.6; cursor: not-allowed; }
     .sold-section, .sold-summary, .review-section {
       margin-bottom: 1.5rem;
       padding: 1rem;
@@ -620,6 +695,9 @@ export class ListingDetailComponent implements OnInit, OnDestroy {
   reviewRating = 5;
   reviewComment = '';
   readonly stars = [1, 2, 3, 4, 5];
+  adminDeleting = false;
+  banning = false;
+  endingAuction = false;
 
   // Report state
   showReportForm = false;
@@ -638,6 +716,7 @@ export class ListingDetailComponent implements OnInit, OnDestroy {
     private messagesService: MessagesService,
     private reviewsService: ReviewsService,
     private reportsService: ReportsService,
+    private adminService: AdminService,
     public auth: AuthService,
   ) {}
 
@@ -685,6 +764,19 @@ export class ListingDetailComponent implements OnInit, OnDestroy {
     return !!this.listing && this.auth.isLoggedIn && this.listing.seller.id === this.auth.currentUser?.id;
   }
 
+  getStatusLabel(status: string): string {
+    if (status === 'admin_removed') return 'Removed by Admin';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  getSellerRatingLabel(): string {
+    const totalRatings = this.listing?.seller.totalRatings ?? 0;
+    if (totalRatings === 0) return 'No reviews yet';
+    const avg = Number(this.listing!.seller.averageRating);
+    const formatted = avg % 1 === 0 ? avg.toString() : avg.toFixed(2).replace(/\.?0+$/, '');
+    return `Rating: ${formatted}/5`;
+  }
+
   loadEligibleBuyers() {
     if (!this.listing || !this.isOwner() || this.listing.status !== 'active') {
       this.eligibleBuyers = [];
@@ -727,6 +819,71 @@ export class ListingDetailComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.errorMsg = err.error?.message || 'Failed to delete listing';
         this.deleting = false;
+      },
+    });
+  }
+
+  adminDeleteListing() {
+    if (!this.listing || !confirm(`Remove "${this.listing.title}" as admin? This will mark it as admin-removed.`)) return;
+    this.adminDeleting = true;
+    this.adminService.adminDeleteListing(this.listing.id).subscribe({
+      next: () => {
+        this.loadListing(this.listing!.id);
+        this.adminDeleting = false;
+        this.successMsg = 'Listing has been removed.';
+      },
+      error: (err) => {
+        this.errorMsg = err.error?.message || 'Failed to remove listing';
+        this.adminDeleting = false;
+      },
+    });
+  }
+
+  banSeller() {
+    if (!this.listing || !confirm(`Ban ${this.listing.seller.firstName} ${this.listing.seller.lastName}? They will no longer be able to log in.`)) return;
+    this.banning = true;
+    this.adminService.banUser(this.listing.seller.id).subscribe({
+      next: () => {
+        this.successMsg = 'User has been banned.';
+        this.loadListing(this.listing!.id);
+        this.banning = false;
+      },
+      error: (err) => {
+        this.errorMsg = err.error?.message || 'Failed to ban user';
+        this.banning = false;
+      },
+    });
+  }
+
+  unbanSeller() {
+    if (!this.listing || !confirm(`Unban ${this.listing.seller.firstName} ${this.listing.seller.lastName}?`)) return;
+    this.banning = true;
+    this.adminService.unbanUser(this.listing.seller.id).subscribe({
+      next: () => {
+        this.successMsg = 'User has been unbanned.';
+        this.loadListing(this.listing!.id);
+        this.banning = false;
+      },
+      error: (err) => {
+        this.errorMsg = err.error?.message || 'Failed to unban user';
+        this.banning = false;
+      },
+    });
+  }
+
+  endAuction() {
+    if (!this.listing || !confirm('End this auction now and notify the highest bidder?')) return;
+    this.endingAuction = true;
+    this.listingsService.endAuction(this.listing.id).subscribe({
+      next: (listing) => {
+        this.listing = listing;
+        this.successMsg = 'Auction ended. The highest bidder has been notified via messages.';
+        this.endingAuction = false;
+        this.loadEligibleBuyers();
+      },
+      error: (err) => {
+        this.errorMsg = err.error?.message || 'Failed to end auction';
+        this.endingAuction = false;
       },
     });
   }

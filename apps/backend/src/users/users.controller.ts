@@ -10,7 +10,8 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { JwtAuthGuard } from '../auth/guards';
+import { JwtAuthGuard, RolesGuard } from '../auth/guards';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -26,5 +27,19 @@ export class UsersController {
   @Put('profile')
   updateProfile(@Request() req, @Body() updateDto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.id, updateDto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put(':id/ban')
+  banUser(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.banUser(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put(':id/unban')
+  unbanUser(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.unbanUser(id);
   }
 }
